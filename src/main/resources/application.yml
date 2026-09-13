@@ -1,0 +1,25 @@
+app:
+  github:
+    default-username: Yuti2908
+  openai:
+    api-key: ${OPENAI_API_KEY:}
+    embedding-model: text-embedding-3-small
+    chat-model: gpt-4o-mini
+    embedding-dimension: 1536
+
+spring:
+  datasource:
+    url: jdbc:h2:mem:githubrag
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  h2:
+    console:
+      enabled: true
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+
+server:
+  port: 8080
