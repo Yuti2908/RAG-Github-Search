@@ -149,7 +149,24 @@ curl -X POST http://localhost:8080/api/v1/search \
   -H "Content-Type: application/json" \
   -d '{"query": "how does chunking work", "topK": 3, "generateAnswer": true}'
 ```
+## Chunking strategy
 
+Different content types get split differently, since a one-size-fits-all approach breaks code and wastes context on prose:
+
+- **Prose (README, Markdown)** — fixed-size chunking: 500 characters per chunk, with a 50-character overlap between consecutive chunks so context isn't lost at a boundary.
+- **Java source files** — split on method and class boundaries using a regex-based approximation (not a full AST parser). Each chunk is one full method or class body, so a function is never cut in half mid-logic. Anything before the first boundary (package declaration, imports, field declarations) becomes its own leading chunk.
+- **Everything else** (other code files, config, etc.) — falls back to the same fixed-size strategy used for prose.
+
+This means a chunk from `EmbeddingServiceImpl.java` is a complete method, while a chunk from `README.md` is a 500-character window of text — each retrieved independently and ranked by similarity at search time.
+
+### Why chunk differently per type
+
+- **Keeps retrieval meaningful** — a chunk that's half a method signature and half unrelated code below it produces a garbage embedding; keeping method/class boundaries intact means each chunk represents one coherent unit of logic.
+- **Improves answer quality** — when `RagSearchService` builds context for GPT, a complete method is far more useful than an arbitrary character-count slice cutting through the middle of it.
+- **Avoids wasted embeddings** — over-chunking prose (e.g. per-sentence) creates many near-duplicate vectors and drives up embedding cost for no retrieval benefit; 500-character windows are a reasonable middle ground of granularity vs. cost.
+- **Makes citations trustworthy** — since each chunk maps back to one `RepoDocument` (file) and stays semantically self-contained, the `(repo: ..., file: ...)` citations in synthesized answers actually point to something coherent, not a fragment spanning two unrelated ideas.
+
+  
 ## Known limitations
 
 - Unauthenticated GitHub API calls are capped at 60 requests/hour — fine for occasional ingestion, but will need a personal access token for heavier use.
